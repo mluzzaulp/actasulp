@@ -1,0 +1,236 @@
+	<!DOCTYPE html>
+	<html lang="es">
+	<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Firmador de Actas - Vue 2</title>
+
+	<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css">
+	<script src="https://cdn.jsdelivr.net/npm/jquery@3.5.1/dist/jquery.slim.min.js"></script>
+	<script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/js/bootstrap.bundle.min.js"></script>
+
+	<script src="https://cdn.jsdelivr.net/npm/vue@2.6.14/dist/vue.js"></script>
+	<script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+
+	<style>
+		body { background: #f8f9fa; padding: 30px 0; }
+		.firma-row { border: 1px solid #dee2e6; border-radius: 8px; padding: 20px; margin-bottom: 15px; background: #fff; }
+		.alert-container { position: fixed; top: 20px; right: 20px; z-index: 9999; min-width: 320px; }
+	</style>
+	</head>
+	<body>
+	<div class="container" id="app">
+		<div class="card">
+			<div class="card-header bg-primary text-white">
+				<h2 class="mb-0">🔏 Firmador de Actas</h2>
+			</div>
+			<div class="card-body">
+
+				<div class="form-group">
+					<label><strong>PDF del Acta:</strong></label>
+					<input type="file" @change="seleccionarPDF" accept="application/pdf" class="form-control">
+				</div>
+
+				<hr>
+
+				<h5>Firmas</h5>
+				<div v-for="(firma, index) in firmas" :key="firma.id" class="firma-row">
+					<h6>Firma {{ index + 1 }} 
+						<span v-if="index === 0" class="badge badge-primary">Obligatoria</span>
+					</h6>
+
+					<div class="form-row">
+						<div class="col-md-6">
+							<label>Firma PNG:</label>
+							<input type="file" @change="e => seleccionarFirma(e, index)" accept="image/png" class="form-control">
+						</div>
+					</div>
+
+					<div class="form-row mt-3">
+						<div class="col-md-2">
+							<label>X</label>
+							<input v-model.number="firma.x" type="number" class="form-control">
+						</div>
+						<div class="col-md-2">
+							<label>Y</label>
+							<input v-model.number="firma.y" type="number" class="form-control">
+						</div>
+						<div class="col-md-2">
+							<label>Ancho</label>
+							<input v-model.number="firma.ancho" type="number" class="form-control">
+						</div>
+						<div class="col-md-2">
+							<label>Alto</label>
+							<input v-model.number="firma.alto" type="number" class="form-control">
+						</div>
+					</div>
+				</div>
+
+				<button class="btn btn-success" @click="agregarFirma" :disabled="firmas.length >= 3">
+					+ Agregar otra firma
+				</button>
+
+				<hr>
+
+				<!-- Selector de páginas -->
+				<div class="form-row">
+					<div class="col-md-5">
+						<label><strong>Aplicar firmas en:</strong></label>
+						<select v-model="modoPagina" class="form-control">
+							<option value="todas">Todas las páginas</option>
+							<option value="individual">Página específica</option>
+						</select>
+					</div>
+					<div class="col-md-3" v-if="modoPagina === 'individual'">
+						<label><strong>Número de página:</strong></label>
+						<input v-model.number="pagina" type="number" class="form-control">
+						<small class="text-muted">-1 = última página</small>
+					</div>
+				</div>
+
+				<button @click="firmarPDF" class="btn btn-primary btn-lg btn-block mt-4" :disabled="!pdfFile">
+					🔏 Firmar y Descargar PDF
+				</button>
+
+			</div>
+		</div>
+
+		<!-- Alertas -->
+		<div class="alert-container">
+			<div v-for="(alert, index) in alerts" :key="index" 
+						:class="['alert', 'alert-' + alert.type, 'alert-dismissible', 'shadow-sm']" role="alert">
+				{{ alert.message }}
+				<button type="button" class="close" @click="dismissAlert(index)">
+					<span aria-hidden="true">&times;</span>
+				</button>
+			</div>
+		</div>
+	</div>
+
+	<script>
+		new Vue({
+			el: '#app',
+			data: {
+				pdfFile: null,
+				firmas: [],
+				modoPagina: 'todas',     // 'todas' o 'individual'
+				pagina: -1,
+				alerts: []
+			},
+			created() {
+				this.cargarConfiguracion();
+				if (this.firmas.length === 0) {
+					this.agregarFirmaInicial();
+				}
+			},
+			methods: {
+				agregarFirmaInicial() {
+					this.firmas.push({ id: Date.now(), file: null, x: 70, y: 65, ancho: 180, alto: 70 });
+				},
+
+				agregarFirma() {
+					if (this.firmas.length >= 3) return;
+					this.firmas.push({ id: Date.now(), file: null, x: 400, y: 65, ancho: 160, alto: 70 });
+				},
+
+				seleccionarPDF(e) {
+					this.pdfFile = e.target.files[0];
+				},
+
+				seleccionarFirma(e, index) {
+					this.firmas[index].file = e.target.files[0];
+				},
+
+				showAlert(message, type = 'success') {
+					this.alerts.push({ message, type });
+					setTimeout(() => this.dismissAlert(this.alerts.length - 1), 4500);
+				},
+
+				dismissAlert(index) {
+					this.alerts.splice(index, 1);
+				},
+
+				cargarConfiguracion() {
+					const saved = localStorage.getItem('firmadorActasConfig');
+					if (saved) {
+						try {
+							const config = JSON.parse(saved);
+							this.firmas = config.firmas.map(f => ({
+								id: Date.now() + Math.random(),
+								file: null,
+								x: f.x,
+								y: f.y,
+								ancho: f.ancho,
+								alto: f.alto
+							}));
+							this.modoPagina = config.modoPagina || 'todas';
+							this.pagina = config.pagina !== undefined ? config.pagina : -1;
+						} catch (e) {}
+					}
+				},
+
+				guardarConfiguracion() {
+					const config = {
+						firmas: this.firmas.map(f => ({
+							x: f.x,
+							y: f.y,
+							ancho: f.ancho,
+							alto: f.alto
+						})),
+						modoPagina: this.modoPagina,
+						pagina: this.pagina
+					};
+					localStorage.setItem('firmadorActasConfig', JSON.stringify(config));
+				},
+
+				async firmarPDF() {
+					if (!this.pdfFile) return this.showAlert("Selecciona un PDF", "warning");
+
+					const rowsConFirma = this.firmas.filter(f => f.file);
+					if (rowsConFirma.length === 0) return this.showAlert("Agrega al menos una firma PNG", "warning");
+
+					try {
+						const pdfBytes = await this.pdfFile.arrayBuffer();
+						const pdfDoc = await PDFLib.PDFDocument.load(pdfBytes);
+						const pages = pdfDoc.getPages();
+
+						const paginasAFirmar = this.modoPagina === 'todas' 
+							? pages 
+							: [pages[this.pagina === -1 ? pages.length - 1 : this.pagina]];
+
+						for (let page of paginasAFirmar) {
+							for (let firma of rowsConFirma) {
+								const firmaBytes = await firma.file.arrayBuffer();
+								const firmaImage = await pdfDoc.embedPng(firmaBytes);
+
+								page.drawImage(firmaImage, {
+									x: firma.x,
+									y: firma.y,
+									width: firma.ancho,
+									height: firma.alto
+								});
+							}
+						}
+
+						this.guardarConfiguracion();
+
+						const pdfModificado = await pdfDoc.save();
+						const blob = new Blob([pdfModificado], { type: 'application/pdf' });
+						const url = URL.createObjectURL(blob);
+
+						const a = document.createElement('a');
+						a.href = url;
+						a.download = this.pdfFile.name.replace('.pdf', '_firmado.pdf');
+						a.click();
+
+						this.showAlert(`¡Éxito! Firmas aplicadas en ${this.modoPagina === 'todas' ? 'todas las páginas' : '1 página'}`, "success");
+					} catch (e) {
+						console.error(e);
+						this.showAlert("Error al procesar el PDF: " + e.message, "danger");
+					}
+				}
+			}
+		});
+	</script>
+</body>
+</html>
