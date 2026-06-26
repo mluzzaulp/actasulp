@@ -3,7 +3,7 @@
 	<head>
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<title>Firmador de Actas</title>
+	<title>Firmador de Actas - Vue 2</title>
 
 	<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css">
 	<script src="https://cdn.jsdelivr.net/npm/jquery@3.5.1/dist/jquery.slim.min.js"></script>
@@ -88,9 +88,19 @@
 					</div>
 				</div>
 
-				<button @click="firmarPDF" class="btn btn-primary btn-lg btn-block mt-4" :disabled="!pdfFile">
+				<button @click="previsualizarPDF" class="btn btn-outline-secondary btn-lg btn-block mt-4" :disabled="!pdfFile">
+					👁️ Previsualizar
+				</button>
+
+				<button @click="firmarPDF" class="btn btn-primary btn-lg btn-block mt-2" :disabled="!pdfFile">
 					🔏 Firmar y Descargar PDF
 				</button>
+
+				<!-- Vista previa -->
+				<div v-if="previewUrl" class="mt-4">
+					<label><strong>Vista previa:</strong></label>
+					<iframe :src="previewUrl" style="width: 100%; height: 600px; border: 1px solid #dee2e6; border-radius: 8px;"></iframe>
+				</div>
 
 			</div>
 		</div>
@@ -115,7 +125,8 @@
 				firmas: [],
 				modoPagina: 'todas',     // 'todas' o 'individual'
 				pagina: -1,
-				alerts: []
+				alerts: [],
+				previewUrl: null
 			},
 			created() {
 				this.cargarConfiguracion();
@@ -183,38 +194,68 @@
 					localStorage.setItem('firmadorActasConfig', JSON.stringify(config));
 				},
 
-				async firmarPDF() {
-					if (!this.pdfFile) return this.showAlert("Selecciona un PDF", "warning");
+				// Genera el PDF firmado en memoria y devuelve los bytes (o null si falla la validación)
+				async generarPDFBytes() {
+					if (!this.pdfFile) {
+						this.showAlert("Selecciona un PDF", "warning");
+						return null;
+					}
 
 					const rowsConFirma = this.firmas.filter(f => f.file);
-					if (rowsConFirma.length === 0) return this.showAlert("Agrega al menos una firma PNG", "warning");
+					if (rowsConFirma.length === 0) {
+						this.showAlert("Agrega al menos una firma PNG", "warning");
+						return null;
+					}
 
-					try {
-						const pdfBytes = await this.pdfFile.arrayBuffer();
-						const pdfDoc = await PDFLib.PDFDocument.load(pdfBytes);
-						const pages = pdfDoc.getPages();
+					const pdfBytes = await this.pdfFile.arrayBuffer();
+					const pdfDoc = await PDFLib.PDFDocument.load(pdfBytes);
+					const pages = pdfDoc.getPages();
 
-						const paginasAFirmar = this.modoPagina === 'todas' 
-							? pages 
-							: [pages[this.pagina === -1 ? pages.length - 1 : this.pagina]];
+					const paginasAFirmar = this.modoPagina === 'todas' 
+						? pages 
+						: [pages[this.pagina === -1 ? pages.length - 1 : this.pagina]];
 
-						for (let page of paginasAFirmar) {
-							for (let firma of rowsConFirma) {
-								const firmaBytes = await firma.file.arrayBuffer();
-								const firmaImage = await pdfDoc.embedPng(firmaBytes);
+					for (let page of paginasAFirmar) {
+						for (let firma of rowsConFirma) {
+							const firmaBytes = await firma.file.arrayBuffer();
+							const firmaImage = await pdfDoc.embedPng(firmaBytes);
 
-								page.drawImage(firmaImage, {
-									x: firma.x,
-									y: firma.y,
-									width: firma.ancho,
-									height: firma.alto
-								});
-							}
+							page.drawImage(firmaImage, {
+								x: firma.x,
+								y: firma.y,
+								width: firma.ancho,
+								height: firma.alto
+							});
 						}
+					}
 
-						this.guardarConfiguracion();
+					this.guardarConfiguracion();
+					return await pdfDoc.save();
+				},
 
-						const pdfModificado = await pdfDoc.save();
+				async previsualizarPDF() {
+					try {
+						const pdfModificado = await this.generarPDFBytes();
+						if (!pdfModificado) return;
+
+						const blob = new Blob([pdfModificado], { type: 'application/pdf' });
+
+						// Liberamos el preview anterior para no acumular memoria
+						if (this.previewUrl) URL.revokeObjectURL(this.previewUrl);
+						this.previewUrl = URL.createObjectURL(blob);
+
+						this.showAlert("Vista previa generada", "success");
+					} catch (e) {
+						console.error(e);
+						this.showAlert("Error al procesar el PDF: " + e.message, "danger");
+					}
+				},
+
+				async firmarPDF() {
+					try {
+						const pdfModificado = await this.generarPDFBytes();
+						if (!pdfModificado) return;
+
 						const blob = new Blob([pdfModificado], { type: 'application/pdf' });
 						const url = URL.createObjectURL(blob);
 
@@ -222,6 +263,7 @@
 						a.href = url;
 						a.download = this.pdfFile.name.replace('.pdf', '_firmado.pdf');
 						a.click();
+						setTimeout(() => URL.revokeObjectURL(url), 1000);
 
 						this.showAlert(`¡Éxito! Firmas aplicadas en ${this.modoPagina === 'todas' ? 'todas las páginas' : '1 página'}`, "success");
 					} catch (e) {
