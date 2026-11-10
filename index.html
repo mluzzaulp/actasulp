@@ -3,97 +3,376 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Firmador de Actas - Vue 2</title>
+<title>Firmador de Actas</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%232f5bea'/%3E%3Cg transform='translate(4 4)' fill='none' stroke='%23fff' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 20h9'/%3E%3Cpath d='M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z'/%3E%3C/g%3E%3C/svg%3E">
 
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css">
-<script src="https://cdn.jsdelivr.net/npm/jquery@3.5.1/dist/jquery.slim.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/js/bootstrap.bundle.min.js"></script>
-
-<script src="https://cdn.jsdelivr.net/npm/vue@2.6.14/dist/vue.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/vue@3.5.13/dist/vue.global.prod.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 
 <style>
-	body { background: #f8f9fa; padding: 30px 0; }
-	.alert-container { position: fixed; top: 20px; right: 20px; z-index: 9999; min-width: 320px; }
+	:root {
+		--fondo: #f4f4f2;
+		--superficie: #ffffff;
+		--superficie-2: #f9f9f8;
+		--borde: #e3e3df;
+		--texto: #1d1d1b;
+		--texto-suave: #6b6b66;
+		--acento: #2f5bea;
+		--acento-hover: #2449c4;
+		--acento-suave: rgba(47, 91, 234, .10);
+		--ok: #1f8a4c;
+		--ok-suave: rgba(31, 138, 76, .14);
+		--aviso: #9a6200;
+		--aviso-suave: #fff4dc;
+		--peligro: #c8352b;
+		--peligro-suave: rgba(200, 53, 43, .10);
+		--visor: #e6e6e2;
+		--sombra: 0 1px 2px rgba(0,0,0,.06), 0 4px 16px rgba(0,0,0,.06);
+		--radio: 10px;
+	}
+	@media (prefers-color-scheme: dark) {
+		:root {
+			--fondo: #161615;
+			--superficie: #1f1f1d;
+			--superficie-2: #262624;
+			--borde: #34342f;
+			--texto: #ececea;
+			--texto-suave: #a3a39c;
+			--acento: #6f8ff5;
+			--acento-hover: #8aa3f7;
+			--acento-suave: rgba(111, 143, 245, .16);
+			--ok: #4cc27f;
+			--ok-suave: rgba(76, 194, 127, .16);
+			--aviso: #f0b44c;
+			--aviso-suave: rgba(240, 180, 76, .12);
+			--peligro: #ef6b61;
+			--peligro-suave: rgba(239, 107, 97, .14);
+			--visor: #121211;
+			--sombra: 0 1px 2px rgba(0,0,0,.4), 0 4px 16px rgba(0,0,0,.3);
+		}
+	}
 
-	.paginas { max-width: 900px; margin: 0 auto; }
-	.pagina { position: relative; margin-bottom: 16px; background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,.25); }
-	.pagina canvas { display: block; width: 100%; height: auto; }
-	.pagina-num { position: absolute; top: 4px; right: 8px; font-size: 12px; color: #6c757d; }
+	* { box-sizing: border-box; }
+	html, body { margin: 0; height: 100%; }
+	body {
+		background: var(--fondo); color: var(--texto);
+		font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+	}
+	button { font: inherit; color: inherit; }
+	[v-cloak] { display: none; }
+	.svg { width: 16px; height: 16px; flex: none; }
 
-	.lugar { position: absolute; border: 2px dashed #007bff; background: rgba(0,123,255,.08); cursor: move;
-		touch-action: none; user-select: none; display: flex; align-items: center; justify-content: center; }
-	.lugar.lleno { border: 1px dotted rgba(0,123,255,.6); background: transparent; }
-	.lugar.sobre { border: 2px solid #28a745; background: rgba(40,167,69,.2); }
+	/* ---------- Barra superior ---------- */
+	.barra {
+		height: 56px; display: flex; align-items: center; gap: 12px; padding: 0 20px;
+		background: var(--superficie); border-bottom: 1px solid var(--borde);
+	}
+	.marca { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 16px; white-space: nowrap; }
+	.marca-icono {
+		width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center;
+		background: var(--acento); color: #fff;
+	}
+	.barra .archivo { color: var(--texto-suave); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+	.barra .espacio { flex: 1; }
+	@media (max-width: 600px) { .barra .texto-largo, .barra .archivo { display: none; } }
+
+	/* ---------- Botones y campos ---------- */
+	.btn {
+		display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+		height: 36px; padding: 0 14px; border-radius: 8px; border: 1px solid var(--borde);
+		background: var(--superficie); cursor: pointer; font-weight: 500; white-space: nowrap;
+		transition: background .15s, border-color .15s;
+	}
+	.btn:hover:not(:disabled) { background: var(--superficie-2); border-color: var(--texto-suave); }
+	.btn:disabled { opacity: .5; cursor: not-allowed; }
+	.btn-primario { background: var(--acento); border-color: var(--acento); color: #fff; }
+	.btn-primario:hover:not(:disabled) { background: var(--acento-hover); border-color: var(--acento-hover); }
+	.btn-peligro { color: var(--peligro); }
+	.btn-peligro:hover:not(:disabled) { background: var(--peligro-suave); border-color: var(--peligro); }
+	.btn-peligro-lleno { background: var(--peligro); border-color: var(--peligro); color: #fff; }
+	.btn-peligro-lleno:hover:not(:disabled) { background: var(--peligro); filter: brightness(1.08); border-color: var(--peligro); }
+	.btn-grande { height: 44px; font-size: 15px; width: 100%; }
+	.btn-chico { height: 30px; padding: 0 10px; font-size: 13px; }
+	.btn-icono {
+		width: 30px; height: 30px; padding: 0; border-radius: 7px; border: 1px solid transparent; flex: none;
+		background: transparent; display: inline-grid; place-items: center; cursor: pointer; color: var(--texto-suave);
+	}
+	.btn-icono:hover:not(:disabled) { background: var(--superficie-2); border-color: var(--borde); color: var(--texto); }
+	.btn-icono.peligro:hover:not(:disabled) { color: var(--peligro); border-color: var(--peligro); background: var(--peligro-suave); }
+	.btn-icono:disabled { opacity: .4; cursor: not-allowed; }
+	.enlace { border: none; background: none; padding: 0; color: var(--acento); cursor: pointer; font-weight: 500; }
+	.enlace:hover { text-decoration: underline; }
+
+	select, input[type=text] {
+		height: 36px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--borde);
+		background: var(--superficie); color: var(--texto); font: inherit; width: 100%; min-width: 0;
+	}
+	select:focus, input[type=text]:focus { outline: 2px solid var(--acento-suave); border-color: var(--acento); }
+	input[type=checkbox] { accent-color: var(--acento); width: 18px; height: 18px; margin: 0; flex: none; }
+
+	/* ---------- Distribución ---------- */
+	.app { display: grid; grid-template-columns: 1fr 340px; height: calc(100vh - 56px); }
+	.app.vacia { grid-template-columns: 1fr; }
+	.visor { position: relative; overflow: auto; background: var(--visor); }
+	.lateral { overflow: auto; background: var(--superficie); border-left: 1px solid var(--borde); }
+
+	@media (max-width: 900px) {
+		.app { grid-template-columns: 1fr; height: auto; }
+		.visor { height: 70vh; }
+		.lateral { border-left: none; border-top: 1px solid var(--borde); }
+	}
+
+	/* ---------- Estado vacío ---------- */
+	.vacio { min-height: 100%; display: grid; place-items: center; padding: 24px; }
+	.zona-pdf {
+		width: min(560px, 100%); padding: 48px 32px; text-align: center; cursor: pointer;
+		border: 2px dashed var(--borde); border-radius: 16px; background: var(--superficie);
+		transition: border-color .15s, background .15s;
+	}
+	.zona-pdf:hover, .zona-pdf.sobre { border-color: var(--acento); background: var(--acento-suave); }
+	.zona-pdf .grande { width: 44px; height: 44px; color: var(--acento); margin-bottom: 12px; }
+	.zona-pdf h2 { margin: 0 0 6px; font-size: 18px; }
+	.zona-pdf p { margin: 0 0 18px; color: var(--texto-suave); }
+
+	/* ---------- Visor ---------- */
+	.herramientas {
+		position: sticky; top: 0; z-index: 5; height: 60px; display: flex; align-items: center; justify-content: center;
+		pointer-events: none;
+	}
+	.herramientas .grupo {
+		pointer-events: auto; display: flex; align-items: center; gap: 2px; padding: 4px;
+		background: var(--superficie); border: 1px solid var(--borde); border-radius: 10px; box-shadow: var(--sombra);
+	}
+	.herramientas .zoom { min-width: 48px; text-align: center; font-variant-numeric: tabular-nums; color: var(--texto-suave); font-size: 13px; }
+	.herramientas .sep { width: 1px; height: 20px; background: var(--borde); margin: 0 4px; }
+	.ajuste {
+		display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 10px; border-radius: 7px;
+		border: 1px solid transparent; background: transparent; cursor: pointer; color: var(--texto-suave); font-size: 13px; font-weight: 500;
+	}
+	.ajuste:hover { background: var(--superficie-2); color: var(--texto); }
+	.ajuste.activo { background: var(--acento-suave); color: var(--acento); }
+
+	.paginas { display: flex; flex-direction: column; align-items: center; gap: 26px; padding: 22px 24px 32px; }
+	.pagina { position: relative; flex: none; background: #fff; box-shadow: var(--sombra); }
+	.pagina canvas { display: block; width: 100%; height: 100%; }
+	.pagina-num { position: absolute; top: -19px; left: 0; font-size: 12px; color: var(--texto-suave); white-space: nowrap; }
+
+	.cargando { position: absolute; inset: 0; display: grid; place-items: center; color: var(--texto-suave); }
+
+	/* ---------- Recuadros de firma sobre el PDF ---------- */
+	.lugar {
+		position: absolute; border: 2px dashed var(--acento); border-radius: 4px; background: rgba(47,91,234,.08);
+		cursor: move; touch-action: none; user-select: none; display: flex; align-items: center; justify-content: center;
+		transition: box-shadow .15s, background .15s; container-type: size;
+	}
+	.lugar.lleno { border: 1px dashed rgba(47,91,234,.55); background: transparent; }
+	.lugar.sobre { border: 2px solid var(--ok); background: rgba(31,138,76,.18); }
+	.lugar.resaltado { box-shadow: 0 0 0 3px rgba(47,91,234,.35); }
 	.lugar img { width: 100%; height: 100%; object-fit: contain; object-position: center bottom; pointer-events: none; }
-	.lugar .texto { font-size: 11px; line-height: 1.15; color: #007bff; text-align: center; padding: 2px; pointer-events: none; }
-	.lugar .numero { position: absolute; top: 0; left: 3px; font-size: 10px; color: #007bff; pointer-events: none; }
-	.lugar .quitar { position: absolute; top: -10px; right: -10px; width: 20px; height: 20px; padding: 0; border: none;
-		border-radius: 50%; background: #dc3545; color: #fff; font-size: 13px; line-height: 20px; cursor: pointer; display: none; }
-	.lugar .tirador { position: absolute; right: -6px; bottom: -6px; width: 12px; height: 12px; background: #007bff;
-		cursor: nwse-resize; display: none; }
-	.lugar:hover .quitar, .lugar:hover .tirador { display: block; }
-	@media (hover: none) { .lugar .quitar, .lugar .tirador { display: block; } }
+	.lugar .texto { font-size: 11px; line-height: 1.2; color: #2f5bea; text-align: center; padding: 2px; pointer-events: none; }
+	@container (max-width: 100px) or (max-height: 40px) { .lugar .texto { display: none; } }
+	.lugar .numero {
+		position: absolute; top: -9px; left: -9px; width: 18px; height: 18px; border-radius: 50%;
+		background: #2f5bea; color: #fff; font-size: 11px; font-weight: 600; display: grid; place-items: center; pointer-events: none;
+	}
+	.lugar .quitar {
+		position: absolute; top: -10px; right: -10px; width: 20px; height: 20px; padding: 0; border: none;
+		border-radius: 50%; background: #c8352b; color: #fff; cursor: pointer; display: none; place-items: center;
+	}
+	.lugar .tirador {
+		position: absolute; right: -6px; bottom: -6px; width: 12px; height: 12px; border-radius: 3px;
+		background: #2f5bea; border: 2px solid #fff; cursor: nwse-resize; display: none;
+	}
+	.lugar:hover .quitar, .lugar.resaltado .quitar { display: grid; }
+	.lugar:hover .tirador, .lugar.resaltado .tirador { display: block; }
+	@media (hover: none) { .lugar .quitar { display: grid; } .lugar .tirador { display: block; } }
+
+	/* ---------- Panel lateral ---------- */
+	.seccion { padding: 18px 20px; border-bottom: 1px solid var(--borde); }
+	.seccion:last-child { border-bottom: none; }
+	.seccion h3, .modal-cuerpo h3 {
+		margin: 0 0 12px; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em;
+		color: var(--texto-suave); display: flex; align-items: center; justify-content: space-between; gap: 8px;
+	}
+	.contador { text-transform: none; letter-spacing: 0; font-weight: 500; }
+
+	.etiqueta {
+		display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; border-radius: 999px;
+		font-size: 12px; font-weight: 600; background: var(--acento-suave); color: var(--acento); white-space: nowrap;
+	}
+	.etiqueta.neutra { background: var(--superficie-2); color: var(--texto-suave); border: 1px solid var(--borde); }
+	.etiqueta.aviso-etq { background: var(--aviso-suave); color: var(--aviso); text-transform: none; letter-spacing: 0; height: 20px; font-size: 11px; }
+	.doc-nombre { margin: 8px 0 0; font-weight: 500; word-break: break-word; }
+	.doc-meta { margin: 2px 0 0; color: var(--texto-suave); font-size: 13px; }
+	.aviso {
+		margin-top: 12px; padding: 10px 12px; border-radius: 8px; font-size: 13px;
+		background: var(--aviso-suave); color: var(--aviso);
+	}
+	.ayuda { margin: 0 0 12px; color: var(--texto-suave); font-size: 13px; }
+	.fila { display: flex; gap: 8px; align-items: center; }
+	.fila-botones { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+
+	.lista-firmas { list-style: none; margin: 0 0 12px; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+	.item-firma {
+		display: flex; align-items: center; gap: 10px; padding: 8px; border-radius: var(--radio);
+		border: 1px solid var(--borde); background: var(--superficie); transition: border-color .15s, background .15s;
+	}
+	.item-firma.resaltado { border-color: var(--acento); background: var(--acento-suave); }
+	.miniatura {
+		width: 88px; height: 46px; flex: none; border-radius: 7px; border: 1.5px dashed var(--borde);
+		background: var(--superficie-2); display: grid; place-items: center; cursor: pointer; padding: 3px;
+		font-size: 11px; line-height: 1.2; color: var(--texto-suave); text-align: center; overflow: hidden;
+		transition: border-color .15s, background .15s;
+	}
+	.miniatura:hover { border-color: var(--acento); color: var(--acento); }
+	.miniatura.lleno { border-style: solid; background: #fff; }
+	.miniatura.sobre { border-color: var(--ok); background: var(--ok-suave); }
+	.miniatura img { max-width: 100%; max-height: 100%; object-fit: contain; }
+	.item-info { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+	.item-info small { color: var(--texto-suave); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+	.item-info .ok { color: var(--ok); }
+	.recordar { margin: 0 0 12px; padding: 10px 12px; border-radius: 8px; background: var(--superficie-2); border: 1px solid var(--borde); font-size: 13px; color: var(--texto-suave); }
+
+	.campo { display: flex; flex-direction: column; gap: 6px; }
+	.campo label { font-weight: 500; }
+	.acciones { display: flex; flex-direction: column; gap: 8px; }
+
+	/* ---------- Modales ---------- */
+	.modal {
+		position: fixed; inset: 0; z-index: 50; background: rgba(0,0,0,.55); display: grid; place-items: center; padding: 24px;
+	}
+	.modal-caja {
+		width: min(1000px, 100%); height: min(92vh, 1200px); display: flex; flex-direction: column;
+		background: var(--superficie); border-radius: 14px; overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,.35);
+	}
+	.modal-caja.chica { width: min(560px, 100%); height: auto; max-height: 90vh; }
+	.modal-cabecera { display: flex; align-items: center; gap: 10px; padding: 12px 16px 12px 20px; border-bottom: 1px solid var(--borde); }
+	.modal-cabecera h2 { margin: 0; font-size: 16px; flex: 1; }
+	.modal iframe { flex: 1; width: 100%; border: none; background: var(--visor); }
+	.modal-cuerpo { overflow: auto; padding: 4px 20px 20px; }
+	.modal-cuerpo section { padding: 16px 0; border-bottom: 1px solid var(--borde); }
+	.modal-cuerpo section:last-child { border-bottom: none; }
+	.modal-pie { display: flex; gap: 8px; justify-content: flex-end; padding: 12px 20px; border-top: 1px solid var(--borde); }
+
+	.opcion { display: flex; gap: 10px; align-items: flex-start; cursor: pointer; font-weight: 500; }
+	.opcion small { display: block; font-weight: 400; color: var(--texto-suave); margin-top: 2px; }
+	.confirmacion {
+		margin-top: 12px; padding: 12px; border-radius: 8px; background: var(--peligro-suave); color: var(--texto); font-size: 13px;
+	}
+	.confirmacion .fila-botones { margin-top: 8px; }
+	.lista-datos { list-style: none; margin: 12px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+	.lista-datos li {
+		display: flex; align-items: center; gap: 10px; padding: 6px 6px 6px 10px; border: 1px solid var(--borde); border-radius: 8px;
+	}
+	.lista-datos .miniatura { width: 64px; height: 34px; cursor: default; border-style: solid; background: #fff; }
+	.lista-datos .item-info small { white-space: normal; }
+	.texto-vacio { margin: 8px 0 0; color: var(--texto-suave); font-size: 13px; }
+
+	.grilla-firmas { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; padding: 16px 0 4px; }
+	.opcion-firma {
+		display: flex; flex-direction: column; gap: 6px; padding: 8px; border-radius: var(--radio); cursor: pointer;
+		border: 1.5px solid var(--borde); background: var(--superficie); text-align: center;
+	}
+	.opcion-firma:hover { border-color: var(--acento); background: var(--acento-suave); }
+	.opcion-firma.actual { border-color: var(--acento); }
+	.opcion-firma .img { height: 60px; display: grid; place-items: center; background: #fff; border-radius: 6px; }
+	.opcion-firma img { max-width: 100%; max-height: 56px; object-fit: contain; }
+	.opcion-firma span { font-size: 12px; color: var(--texto-suave); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+	/* ---------- Avisos ---------- */
+	.toasts { position: fixed; right: 20px; bottom: 20px; z-index: 60; display: flex; flex-direction: column; gap: 8px; max-width: calc(100vw - 40px); }
+	.toast {
+		display: flex; align-items: flex-start; gap: 10px; min-width: 280px; max-width: 420px; padding: 12px 12px 12px 14px;
+		background: var(--superficie); border: 1px solid var(--borde); border-left: 4px solid var(--acento);
+		border-radius: var(--radio); box-shadow: var(--sombra); animation: entrar .2s ease-out;
+	}
+	.toast.ok { border-left-color: var(--ok); }
+	.toast.aviso { border-left-color: var(--aviso); }
+	.toast.error { border-left-color: var(--peligro); }
+	.toast span { flex: 1; }
+	.toast button { border: none; background: none; cursor: pointer; color: var(--texto-suave); padding: 0 2px; font-size: 18px; line-height: 1; }
+	@keyframes entrar { from { opacity: 0; transform: translateY(8px); } }
 </style>
 </head>
 <body>
-<div class="container" id="app">
-	<div class="card">
-		<div class="card-header bg-primary text-white">
-			<h2 class="mb-0">🔏 Firmador de Actas</h2>
+<div id="app" v-cloak>
+	<header class="barra">
+		<div class="marca">
+			<span class="marca-icono">
+				<svg class="svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+			</span>
+			Firmador de Actas
 		</div>
-		<div class="card-body">
+		<span v-if="pdfFile" class="archivo">· {{ pdfFile.name }}</span>
+		<span class="espacio"></span>
+		<button v-if="pdfFile" class="btn btn-chico" @click="$refs.inputPdf.click()" title="Abrir otra acta">
+			<svg class="svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+			<span class="texto-largo">Abrir otra acta</span>
+		</button>
+		<button class="btn btn-chico" @click="abrirDatos" title="Datos guardados en este navegador">
+			<svg class="svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/></svg>
+			<span class="texto-largo">Datos guardados</span>
+		</button>
+	</header>
 
-			<div class="form-group">
-				<label><strong>PDF del Acta:</strong></label>
-				<input type="file" @change="e => abrirPDF(e.target.files[0])" accept="application/pdf" class="form-control">
-				<small class="text-muted">También podés arrastrar el PDF a la página.</small>
+	<div :class="['app', { vacia: !paginas.length }]">
+		<main class="visor" ref="visor">
+			<!-- Sin PDF: zona para soltarlo -->
+			<div v-if="!paginas.length" class="vacio">
+				<div :class="['zona-pdf', { sobre: sobreZonaPdf }]" @click="$refs.inputPdf.click()"
+					@dragover.prevent="sobreZonaPdf = true" @dragleave="sobreZonaPdf = false" @drop="sobreZonaPdf = false">
+					<svg class="grande" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M12 18v-6"/><path d="m9 15 3-3 3 3"/></svg>
+					<h2>{{ cargando ? 'Abriendo el acta…' : 'Soltá acá el PDF del acta' }}</h2>
+					<p>o hacé click para elegirlo. Se detectan solas las actas de mesa y de promoción.</p>
+					<button class="btn btn-primario" @click.stop="$refs.inputPdf.click()">Elegir PDF</button>
+				</div>
 			</div>
 
-			<div v-if="cargando" class="text-muted">Cargando PDF…</div>
-
-			<template v-if="paginas.length">
-				<div class="d-flex flex-wrap align-items-center mb-2">
-					<span v-if="tipo" class="badge badge-info mr-2 mb-2">{{ nombreTipo }}</span>
-					<span v-else class="badge badge-secondary mr-2 mb-2">Formato no reconocido: agregá los lugares de firma a mano</span>
-					<button class="btn btn-sm btn-outline-primary mr-2 mb-2" @click="agregarLugar">+ Agregar lugar de firma</button>
-					<button class="btn btn-sm btn-outline-secondary mr-2 mb-2" @click="restaurarLugares">Restaurar posiciones</button>
-					<div class="form-inline mb-2 ml-auto">
-						<label class="mr-2"><strong>Firmar en:</strong></label>
-						<select v-model="modoPagina" class="form-control form-control-sm">
-							<option value="todas">Todas las páginas</option>
-							<option v-for="pag in paginas" :key="pag.num" :value="pag.num">Solo la página {{ pag.num }}</option>
-							<option value="ultima">Solo la última página</option>
-						</select>
+			<template v-else>
+				<div class="herramientas">
+					<div class="grupo">
+						<button class="btn-icono" title="Alejar" @click="alejar" :disabled="zoomPorcentaje <= 25">
+							<svg class="svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14"/></svg>
+						</button>
+						<span class="zoom">{{ zoomPorcentaje }}%</span>
+						<button class="btn-icono" title="Acercar" @click="acercar" :disabled="zoomPorcentaje >= 400">
+							<svg class="svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+						</button>
+						<span class="sep"></span>
+						<button :class="['ajuste', { activo: zoom === 'ancho' }]" title="Ajustar al ancho" @click="zoom = 'ancho'">
+							<svg class="svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h18"/><path d="m7 8-4 4 4 4"/><path d="m17 8 4 4-4 4"/></svg>
+							Ancho
+						</button>
+						<button :class="['ajuste', { activo: zoom === 'alto' }]" title="Ajustar al alto" @click="zoom = 'alto'">
+							<svg class="svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18"/><path d="m8 7 4-4 4 4"/><path d="m8 17 4 4 4-4"/></svg>
+							Alto
+						</button>
 					</div>
 				</div>
 
-				<div v-if="avisoPie" class="alert alert-warning py-2">{{ avisoPie }}</div>
-
-				<p class="text-muted small">
-					Hacé click en un recuadro o soltá encima la imagen de la firma (PNG o JPG).
-					Arrastrá el recuadro para moverlo y la esquina para cambiarle el tamaño.
-				</p>
-
 				<div class="paginas">
-					<div v-for="pag in paginas" :key="pag.num" class="pagina">
-						<canvas :ref="'canvas' + pag.num" :width="pag.ancho * ESCALA" :height="pag.alto * ESCALA"></canvas>
-						<span class="pagina-num">Página {{ pag.num }}</span>
+					<div v-for="pag in paginas" :key="pag.num" class="pagina"
+						:style="{ width: pag.ancho * pxPorPunto + 'px', height: pag.alto * pxPorPunto + 'px' }">
+						<span class="pagina-num">Página {{ pag.num }} de {{ paginas.length }}</span>
+						<canvas :ref="el => registrarCanvas(pag.num, el)"></canvas>
 						<template v-if="seFirma(pag.num)">
 							<div v-for="(lugar, i) in lugares" :key="lugar.id"
-								:class="['lugar', { lleno: lugar.firma, sobre: lugar.sobre }]"
+								:class="['lugar', { lleno: lugar.firma, sobre: lugar.sobre, resaltado: resaltado === lugar.id }]"
 								:style="estiloLugar(lugar, pag)"
 								:title="lugar.firma ? lugar.firma.nombre : 'Click o soltá acá la firma'"
+								@mouseenter="resaltado = lugar.id" @mouseleave="resaltado = null"
 								@pointerdown="iniciarArrastre($event, lugar, pag, 'mover')"
 								@dragover.prevent.stop="lugar.sobre = true"
 								@dragleave="lugar.sobre = false"
 								@drop.prevent.stop="soltarFirma($event, lugar)">
 								<img v-if="lugar.firma" :src="lugar.firma.url" alt="">
-								<span v-else class="texto">Firma {{ i + 1 }}<br>click o soltá la imagen</span>
-								<span v-if="lugar.firma" class="numero">{{ i + 1 }}</span>
+								<span v-else class="texto">Click o soltá<br>la firma</span>
+								<span class="numero">{{ i + 1 }}</span>
 								<button class="quitar" :title="lugar.firma ? 'Quitar firma' : 'Quitar lugar'"
-									@pointerdown.stop @click.stop="quitar(lugar)">&times;</button>
+									@pointerdown.stop @click.stop="lugar.firma ? quitarFirma(lugar) : quitarLugar(lugar)">
+									<svg class="svg" style="width:12px;height:12px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+								</button>
 								<span class="tirador" @pointerdown.stop="iniciarArrastre($event, lugar, pag, 'redimensionar')"></span>
 							</div>
 						</template>
@@ -101,33 +380,241 @@
 				</div>
 			</template>
 
-			<input type="file" ref="inputFirma" accept="image/png,image/jpeg" hidden @change="alElegirFirma">
+			<div v-if="cargando && paginas.length" class="cargando">Abriendo el acta…</div>
+		</main>
 
-			<button @click="previsualizarPDF" class="btn btn-outline-secondary btn-lg btn-block mt-4" :disabled="!pdfBytes">
-				👁️ Previsualizar
-			</button>
+		<aside v-if="paginas.length" class="lateral">
+			<section class="seccion">
+				<h3>Documento</h3>
+				<span v-if="tipo" class="etiqueta">{{ nombreTipo }}</span>
+				<span v-else class="etiqueta neutra">Formato no reconocido</span>
+				<p class="doc-nombre">{{ pdfFile.name }}</p>
+				<p class="doc-meta">{{ paginas.length }} {{ paginas.length === 1 ? 'página' : 'páginas' }}</p>
+				<div v-if="!tipo" class="aviso">No es un acta de mesa ni de promoción: agregá los lugares de firma a mano.</div>
+				<div v-if="avisoPie" class="aviso">{{ avisoPie }}</div>
+			</section>
 
-			<button @click="firmarPDF" class="btn btn-primary btn-lg btn-block mt-2" :disabled="!pdfBytes">
-				🔏 Firmar y Descargar PDF
-			</button>
+			<section class="seccion">
+				<h3>
+					Configuración
+					<span v-if="configModificada" class="etiqueta aviso-etq">Con cambios</span>
+				</h3>
+				<select :value="seleccionId" @change="elegirConfig($event.target.value)" aria-label="Configuración">
+					<option value="">Última usada</option>
+					<option v-for="c in configsDelTipo" :key="c.id" :value="c.id">{{ c.nombre }}</option>
+				</select>
+				<form v-if="nombreNuevo !== null" style="margin-top:10px" @submit.prevent="guardarComo">
+					<div class="fila">
+						<input type="text" v-model="nombreNuevo" ref="inputNombre" placeholder="Ej.: Presidente de mesa" maxlength="60" @input="reemplazo = null">
+						<button :class="['btn', 'btn-chico', reemplazo ? 'btn-peligro-lleno' : 'btn-primario']" type="submit" :disabled="!nombreNuevo.trim()">{{ reemplazo ? 'Reemplazar' : 'Guardar' }}</button>
+						<button class="btn-icono" type="button" title="Cancelar" @click="nombreNuevo = null; reemplazo = null">
+							<svg class="svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+						</button>
+					</div>
+					<div v-if="reemplazo" class="aviso">Ya hay una configuración con ese nombre. Si la reemplazás, se pierde lo que tenía.</div>
+				</form>
+				<div v-else class="fila-botones">
+					<button class="btn btn-chico" @click="empezarGuardarComo">Guardar como…</button>
+					<button v-if="configModificada" class="btn btn-chico" @click="actualizarConfig">Actualizar «{{ configSeleccionada.nombre }}»</button>
+				</div>
+			</section>
 
-			<!-- Vista previa -->
-			<div v-if="previewUrl" class="mt-4">
-				<label><strong>Vista previa:</strong></label>
-				<iframe :src="previewUrl" style="width: 100%; height: 600px; border: 1px solid #dee2e6; border-radius: 8px;"></iframe>
+			<section class="seccion">
+				<h3>Firmas <span class="contador">{{ firmasCargadas }} de {{ lugares.length }}</span></h3>
+				<p class="ayuda">Hacé click en un recuadro o soltá encima la imagen (PNG o JPG). En el PDF, arrastrá el recuadro para moverlo y la esquina para cambiarle el tamaño.</p>
+				<div v-if="!prefs.guardarFirmas && firmasCargadas" class="recordar">
+					¿Querés que la próxima vez estén cargadas?
+					<button class="enlace" @click="activarGuardado">Recordar mis firmas</button>
+				</div>
+				<ul class="lista-firmas">
+					<li v-for="(lugar, i) in lugares" :key="lugar.id"
+						:class="['item-firma', { resaltado: resaltado === lugar.id }]"
+						@mouseenter="resaltado = lugar.id" @mouseleave="resaltado = null">
+						<button :class="['miniatura', { lleno: lugar.firma, sobre: lugar.sobre }]"
+							:title="lugar.firma ? 'Cambiar firma' : 'Cargar firma'"
+							@click="elegirFirma(lugar)"
+							@dragover.prevent.stop="lugar.sobre = true"
+							@dragleave="lugar.sobre = false"
+							@drop.prevent.stop="soltarFirma($event, lugar)">
+							<img v-if="lugar.firma" :src="lugar.firma.url" alt="">
+							<span v-else>Soltá o elegí la firma</span>
+						</button>
+						<div class="item-info">
+							<strong>Firma {{ i + 1 }}</strong>
+							<small v-if="lugar.firma" class="ok">{{ lugar.firma.nombre }}</small>
+							<small v-else>Sin cargar</small>
+						</div>
+						<button v-if="lugar.firma" class="btn-icono" title="Quitar firma" @click="quitarFirma(lugar)">
+							<svg class="svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+						</button>
+						<button v-else class="btn-icono peligro" title="Quitar este lugar" @click="quitarLugar(lugar)">
+							<svg class="svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/></svg>
+						</button>
+					</li>
+				</ul>
+				<div class="fila-botones">
+					<button class="btn btn-chico" @click="agregarLugar">
+						<svg class="svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+						Agregar lugar
+					</button>
+					<button class="btn btn-chico" @click="restaurarLugares">Restaurar posiciones</button>
+				</div>
+			</section>
+
+			<section class="seccion">
+				<div class="campo">
+					<label for="modo-pagina">Firmar en</label>
+					<select id="modo-pagina" v-model="modoPagina">
+						<option value="todas">Todas las páginas</option>
+						<option v-for="pag in paginas" :key="pag.num" :value="pag.num">Solo la página {{ pag.num }}</option>
+						<option value="ultima">Solo la última página</option>
+					</select>
+				</div>
+			</section>
+
+			<section class="seccion acciones">
+				<button class="btn btn-grande" @click="previsualizarPDF" :disabled="!firmasCargadas">
+					<svg class="svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>
+					Previsualizar
+				</button>
+				<button class="btn btn-primario btn-grande" @click="firmarPDF" :disabled="!firmasCargadas">
+					<svg class="svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg>
+					Firmar y descargar
+				</button>
+			</section>
+		</aside>
+	</div>
+
+	<input type="file" ref="inputPdf" accept="application/pdf" hidden @change="e => abrirPDF(e.target.files[0])">
+	<input type="file" ref="inputFirma" accept="image/png,image/jpeg" hidden @change="alElegirFirma">
+
+	<!-- Vista previa -->
+	<div v-if="preview" class="modal" @click.self="cerrarPreview">
+		<div class="modal-caja">
+			<div class="modal-cabecera">
+				<h2>Vista previa del acta firmada</h2>
+				<button class="btn btn-primario btn-chico" @click="descargar(preview.blob)">Descargar</button>
+				<button class="btn-icono" title="Cerrar" @click="cerrarPreview">
+					<svg class="svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+				</button>
 			</div>
-
+			<iframe :src="preview.url" title="Vista previa"></iframe>
 		</div>
 	</div>
 
-	<!-- Alertas -->
-	<div class="alert-container">
-		<div v-for="(alert, index) in alerts" :key="index"
-					:class="['alert', 'alert-' + alert.type, 'alert-dismissible', 'shadow-sm']" role="alert">
-			{{ alert.message }}
-			<button type="button" class="close" @click="dismissAlert(index)">
-				<span aria-hidden="true">&times;</span>
-			</button>
+	<!-- Elegir una firma guardada -->
+	<div v-if="eligiendo" class="modal" @click.self="eligiendo = null">
+		<div class="modal-caja chica">
+			<div class="modal-cabecera">
+				<h2>Firma {{ lugares.indexOf(eligiendo) + 1 }}</h2>
+				<button class="btn-icono" title="Cerrar" @click="eligiendo = null">
+					<svg class="svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+				</button>
+			</div>
+			<div class="modal-cuerpo">
+				<div class="grilla-firmas">
+					<button v-for="f in biblioteca" :key="f.id" :class="['opcion-firma', { actual: eligiendo.firma && eligiendo.firma.id === f.id }]"
+						@click="asignarFirma(eligiendo, f)">
+						<span class="img"><img :src="f.url" alt=""></span>
+						<span>{{ f.nombre }}</span>
+					</button>
+				</div>
+			</div>
+			<div class="modal-pie">
+				<button v-if="eligiendo.firma" class="btn btn-peligro" @click="quitarFirma(eligiendo); eligiendo = null">Quitar firma</button>
+				<span style="flex:1"></span>
+				<button class="btn btn-primario" @click="subirDesdeSelector">Subir otra imagen…</button>
+			</div>
+		</div>
+	</div>
+
+	<!-- Datos guardados -->
+	<div v-if="verDatos" class="modal" @click.self="cerrarDatos">
+		<div class="modal-caja chica">
+			<div class="modal-cabecera">
+				<h2>Datos guardados en este navegador</h2>
+				<button class="btn-icono" title="Cerrar" @click="cerrarDatos">
+					<svg class="svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+				</button>
+			</div>
+			<div class="modal-cuerpo">
+				<section>
+					<h3>Firmas</h3>
+					<label class="opcion">
+						<input type="checkbox" :checked="prefs.guardarFirmas" @change="cambiarGuardado">
+						<span>
+							Recordar mis firmas
+							<small>Las imágenes quedan guardadas solo en este navegador, no se suben a ningún lado. Activalo únicamente en una computadora de uso personal.</small>
+						</span>
+					</label>
+					<div v-if="confirmar === 'desactivar'" class="confirmacion">
+						Se van a borrar {{ biblioteca.length === 1 ? 'la firma guardada' : 'las ' + biblioteca.length + ' firmas guardadas' }}.
+						<div class="fila-botones">
+							<button class="btn btn-chico btn-peligro-lleno" @click="desactivarGuardado">Borrar y dejar de recordar</button>
+							<button class="btn btn-chico" @click="confirmar = null">Cancelar</button>
+						</div>
+					</div>
+					<ul v-if="biblioteca.length" class="lista-datos">
+						<li v-for="f in biblioteca" :key="f.id">
+							<span class="miniatura"><img :src="f.url" alt=""></span>
+							<span class="item-info"><strong>{{ f.nombre }}</strong></span>
+							<button class="btn-icono peligro" title="Borrar esta firma" @click="borrarFirmaGuardada(f)">
+								<svg class="svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/></svg>
+							</button>
+						</li>
+					</ul>
+					<p v-else-if="prefs.guardarFirmas" class="texto-vacio">Todavía no hay firmas guardadas: se guardan al cargarlas.</p>
+				</section>
+
+				<section>
+					<h3>Configuraciones</h3>
+					<ul v-if="prefs.configs.length" class="lista-datos">
+						<li v-for="c in prefs.configs" :key="c.id">
+							<span class="item-info">
+								<strong>{{ c.nombre }}</strong>
+								<small>{{ nombreDeTipo(c.tipo) }} · {{ resumen(c) }}</small>
+							</span>
+							<button class="btn-icono peligro" title="Borrar esta configuración" @click="borrarConfig(c)">
+								<svg class="svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/></svg>
+							</button>
+						</li>
+					</ul>
+					<p v-else class="texto-vacio">Todavía no guardaste ninguna. Usá «Guardar como…» en el panel de la derecha.</p>
+				</section>
+
+				<section>
+					<h3>Última configuración usada</h3>
+					<ul v-if="Object.keys(prefs.ultima).length" class="lista-datos">
+						<li v-for="(estado, t) in prefs.ultima" :key="t">
+							<span class="item-info">
+								<strong>{{ nombreDeTipo(t) }}</strong>
+								<small>{{ resumen(estado) }}</small>
+							</span>
+							<button class="btn btn-chico" @click="olvidarUltima(t)">Olvidar</button>
+						</li>
+					</ul>
+					<p v-else class="texto-vacio">Nada guardado todavía.</p>
+				</section>
+
+				<section>
+					<button class="btn btn-peligro" @click="confirmar = 'todo'">Borrar todo lo guardado</button>
+					<div v-if="confirmar === 'todo'" class="confirmacion">
+						Se borran las firmas, las configuraciones y la última configuración usada. No se puede deshacer.
+						<div class="fila-botones">
+							<button class="btn btn-chico btn-peligro-lleno" @click="borrarTodo">Borrar todo</button>
+							<button class="btn btn-chico" @click="confirmar = null">Cancelar</button>
+						</div>
+					</div>
+				</section>
+			</div>
+		</div>
+	</div>
+
+	<!-- Avisos -->
+	<div class="toasts" aria-live="polite">
+		<div v-for="t in toasts" :key="t.id" :class="['toast', t.tipo]" role="status">
+			<span>{{ t.mensaje }}</span>
+			<button title="Cerrar" @click="cerrarToast(t.id)">&times;</button>
 		</div>
 	</div>
 </div>
@@ -135,8 +622,11 @@
 <script>
 	pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
-	const CLAVE_CONFIG = 'firmadorActas.v2';
-	const ESCALA = 2; // resolución del render de cada página (px por punto PDF)
+	const CLAVE_PREFS = 'firmadorActas.v3';
+	const CLAVE_PREFS_V2 = 'firmadorActas.v2';
+	const PX_POR_PUNTO_100 = 96 / 72; // zoom 100% = tamaño real de la hoja en pantalla
+	const MARGEN_ANCHO = 48;          // padding horizontal del visor (24 + 24)
+	const MARGEN_ALTO = 60 + 22 + 20; // barra de zoom + espacio del rótulo de página + aire abajo
 
 	// Coordenadas en puntos PDF, origen abajo-izquierda (las mismas que usa pdf-lib).
 	// Medidas sobre actas reales de 595x842. "anclaY" es la línea base del texto "Firmas..."
@@ -168,70 +658,522 @@
 	let ultimoId = 0;
 	const limitar = (v, min, max) => Math.min(Math.max(v, min), max);
 	const redondear = v => Math.round(v * 10) / 10;
+	const clonar = v => JSON.parse(JSON.stringify(v));
+	const mismoEstado = (a, b) =>
+		JSON.stringify({ l: a.lugares, m: a.modoPagina }) === JSON.stringify({ l: b.lugares, m: b.modoPagina });
 
-	function leerConfig() {
-		try {
-			const c = JSON.parse(localStorage.getItem(CLAVE_CONFIG));
-			if (c && typeof c === 'object') return { modoPagina: c.modoPagina || 'todas', lugares: c.lugares || {} };
-		} catch (e) {}
-		return { modoPagina: 'todas', lugares: {} };
+	// ---------- Preferencias (localStorage) ----------
+	// { guardarFirmas, zoom, ultima: { tipo: estado }, seleccion: { tipo: idConfig }, configs: [{ id, nombre, tipo, ...estado }] }
+	// estado = { lugares: [{ x, y, w, h, firmaId }], modoPagina }
+	const esObjeto = v => v !== null && typeof v === 'object' && !Array.isArray(v);
+	const estadoValido = e => esObjeto(e) && Array.isArray(e.lugares) &&
+		e.lugares.every(l => esObjeto(l) && [l.x, l.y, l.w, l.h].every(Number.isFinite));
+
+	// Lo guardado puede venir viejo o tocado a mano: lo que no tiene la forma esperada se descarta
+	function limpiarPrefs(p, base) {
+		base.guardarFirmas = p.guardarFirmas === true;
+		if (p.zoom === 'ancho' || p.zoom === 'alto' || (Number.isFinite(p.zoom) && p.zoom > 0)) base.zoom = p.zoom;
+		if (esObjeto(p.ultima)) {
+			for (const [t, e] of Object.entries(p.ultima)) if (estadoValido(e)) base.ultima[t] = e;
+		}
+		if (esObjeto(p.seleccion)) {
+			for (const [t, id] of Object.entries(p.seleccion)) if (typeof id === 'string') base.seleccion[t] = id;
+		}
+		if (Array.isArray(p.configs)) {
+			base.configs = p.configs.filter(c => estadoValido(c) && typeof c.id === 'string' && typeof c.nombre === 'string' && typeof c.tipo === 'string');
+		}
+		return base;
 	}
 
-	new Vue({
-		el: '#app',
-		data: {
-			ESCALA,
-			pdfFile: null,
-			pdfBytes: null,
-			paginas: [],          // [{ num, ancho, alto }] en puntos PDF
-			tipo: null,           // 'mesa' | 'promo' | null
-			desplazamiento: 0,    // cuánto se corrió el pie respecto de las actas de referencia
-			avisoPie: '',
-			lugares: [],          // [{ id, x, y, w, h, firma, sobre }]
-			modoPagina: 'todas',  // 'todas' | 'ultima' | número de página (1..n)
-			cargando: false,
-			alerts: [],
-			previewUrl: null
+	function leerPrefs() {
+		const base = { guardarFirmas: false, zoom: 'ancho', ultima: {}, seleccion: {}, configs: [] };
+		try {
+			const p = JSON.parse(localStorage.getItem(CLAVE_PREFS));
+			if (esObjeto(p)) return limpiarPrefs(p, base);
+			// versión anterior: solo posiciones por tipo de acta
+			const v2 = JSON.parse(localStorage.getItem(CLAVE_PREFS_V2));
+			if (esObjeto(v2) && esObjeto(v2.lugares)) {
+				for (const [t, ls] of Object.entries(v2.lugares)) {
+					const e = { lugares: Array.isArray(ls) ? ls.map(l => ({ ...l, firmaId: null })) : null, modoPagina: v2.modoPagina || 'todas' };
+					if (estadoValido(e)) base.ultima[t] = e;
+				}
+			}
+		} catch (e) {}
+		return base;
+	}
+
+	// ---------- Firmas guardadas (IndexedDB: las imágenes no entran cómodas en localStorage) ----------
+	const BD_NOMBRE = 'firmadorActas', BD_TABLA = 'firmas';
+	function abrirBD() {
+		return new Promise((ok, mal) => {
+			const r = indexedDB.open(BD_NOMBRE, 1);
+			r.onupgradeneeded = () => r.result.createObjectStore(BD_TABLA, { keyPath: 'id' });
+			r.onsuccess = () => ok(r.result);
+			r.onerror = () => mal(r.error);
+		});
+	}
+	async function enBD(modo, operacion) {
+		const db = await abrirBD();
+		return new Promise((ok, mal) => {
+			const tx = db.transaction(BD_TABLA, modo);
+			const pedido = operacion(tx.objectStore(BD_TABLA));
+			tx.oncomplete = () => { db.close(); ok(pedido.result); };
+			tx.onerror = tx.onabort = () => { db.close(); mal(tx.error); };
+		});
+	}
+	const FirmasBD = {
+		todas: () => enBD('readonly', t => t.getAll()),
+		guardar: registro => enBD('readwrite', t => t.put(registro)),
+		borrar: id => enBD('readwrite', t => t.delete(id)),
+		borrarTodas: () => enBD('readwrite', t => t.clear())
+	};
+
+	// Identificador por contenido: la misma imagen cargada dos veces se guarda una sola vez
+	async function huella(bytes) {
+		try {
+			const h = await crypto.subtle.digest('SHA-256', bytes);
+			return [...new Uint8Array(h)].map(b => b.toString(16).padStart(2, '0')).join('').slice(0, 32);
+		} catch (e) {
+			// sin crypto.subtle (http que no es localhost): FNV-1a, alcanza para reconocer la misma imagen
+			let a = 0x811c9dc5, b = 0x01000193;
+			for (const x of new Uint8Array(bytes)) {
+				a = Math.imul(a ^ x, 0x01000193) >>> 0;
+				b = Math.imul(b ^ x, 0x811c9dc5) >>> 0;
+			}
+			return 'f' + a.toString(16).padStart(8, '0') + b.toString(16).padStart(8, '0') + bytes.byteLength.toString(16);
+		}
+	}
+
+	Vue.createApp({
+		data() {
+			const prefs = leerPrefs();
+			return {
+				prefs,
+				biblioteca: [],       // firmas guardadas: [{ id, nombre, tipo, bytes, url }]
+				pdfFile: null,
+				pdfBytes: null,
+				paginas: [],          // [{ num, ancho, alto }] en puntos PDF
+				tipo: null,           // 'mesa' | 'promo' | null
+				desplazamiento: 0,    // cuánto se corrió el pie respecto de las actas de referencia
+				avisoPie: '',
+				lugares: [],          // [{ id, x, y, w, h, firma, sobre }]; firma = { id|null, nombre, tipo, bytes, url }
+				modoPagina: 'todas',  // 'todas' | 'ultima' | número de página (1..n)
+				zoom: prefs.zoom,     // 'ancho' | 'alto' | factor (1 = 100%)
+				anchoVisor: 0,
+				altoVisor: 0,
+				resaltado: null,      // id del lugar bajo el mouse (en el PDF o en la lista)
+				sobreZonaPdf: false,
+				cargando: false,
+				toasts: [],
+				preview: null,        // { url, blob }
+				eligiendo: null,      // lugar para el que se elige una firma guardada
+				verDatos: false,
+				confirmar: null,      // 'desactivar' | 'todo'
+				nombreNuevo: null,    // texto del "Guardar como…" mientras está abierto
+				reemplazo: null       // id de la configuración que se pisaría, esperando confirmación
+			};
 		},
 		computed: {
 			nombreTipo() {
 				return this.tipo ? TIPOS[this.tipo].nombre : '';
+			},
+			claveTipo() {
+				return this.tipo || 'otro';
+			},
+			firmasCargadas() {
+				return this.lugares.filter(l => l.firma).length;
 			},
 			paginasAFirmar() {
 				const n = this.paginas.length;
 				if (this.modoPagina === 'todas') return this.paginas.map(p => p.num);
 				if (this.modoPagina === 'ultima') return n ? [n] : [];
 				return [this.modoPagina];
+			},
+			pxPorPunto() {
+				if (this.zoom === 'ancho') {
+					const ancho = Math.max(...this.paginas.map(p => p.ancho), 1);
+					return Math.max((this.anchoVisor - MARGEN_ANCHO) / ancho, 0.2);
+				}
+				if (this.zoom === 'alto') {
+					const alto = Math.max(...this.paginas.map(p => p.alto), 1);
+					return Math.max((this.altoVisor - MARGEN_ALTO) / alto, 0.2);
+				}
+				return this.zoom * PX_POR_PUNTO_100;
+			},
+			zoomPorcentaje() {
+				return Math.round(this.pxPorPunto / PX_POR_PUNTO_100 * 100);
+			},
+			// Lo que se guarda como "última usada" o en una configuración con nombre
+			instantanea() {
+				const d = this.desplazamiento;
+				return {
+					lugares: this.lugares.map(l => ({
+						x: redondear(l.x), y: redondear(l.y - d), w: redondear(l.w), h: redondear(l.h),
+						firmaId: (l.firma && l.firma.id) || null
+					})),
+					modoPagina: this.modoPagina
+				};
+			},
+			configsDelTipo() {
+				return this.prefs.configs.filter(c => c.tipo === this.claveTipo);
+			},
+			seleccionId() {
+				const id = this.prefs.seleccion[this.claveTipo];
+				return this.configsDelTipo.some(c => c.id === id) ? id : '';
+			},
+			configSeleccionada() {
+				return this.configsDelTipo.find(c => c.id === this.seleccionId) || null;
+			},
+			configModificada() {
+				return !!this.configSeleccionada && !mismoEstado(this.configSeleccionada, this.instantanea);
+			}
+		},
+		watch: {
+			pxPorPunto() {
+				// Re-render nítido para el nuevo tamaño, esperando a que termine el cambio
+				clearTimeout(this.timerRender);
+				this.timerRender = setTimeout(() => this.dibujarPaginas(), 150);
+			},
+			zoom(valor) {
+				this.prefs.zoom = valor;
+				this.guardarPrefs();
+			},
+			modoPagina() {
+				this.persistir();
 			}
 		},
 		created() {
-			this.config = leerConfig();
-			this.modoPagina = this.config.modoPagina;
+			// Estado no reactivo (pdf.js no se lleva bien con los proxies de Vue)
+			this.pdfDoc = null;
+			this.canvases = {};
+			this.tareas = {};
+			this.cola = Promise.resolve();
+			this.ocupado = false;
+			this.bibliotecaLista = this.cargarBiblioteca();
 		},
 		mounted() {
-			// Evita que el navegador abra el archivo si se suelta fuera de un recuadro;
-			// si es un PDF, lo carga como acta.
+			// Si se suelta un archivo fuera de un recuadro: un PDF se abre como acta; lo demás se ignora
 			window.addEventListener('dragover', e => e.preventDefault());
 			window.addEventListener('drop', e => {
 				e.preventDefault();
 				const f = e.dataTransfer.files[0];
 				if (f && (f.type === 'application/pdf' || /\.pdf$/i.test(f.name))) this.abrirPDF(f);
 			});
+			window.addEventListener('keydown', e => {
+				if (e.key !== 'Escape') return;
+				if (this.eligiendo) this.eligiendo = null;
+				else if (this.verDatos) this.cerrarDatos();
+				else this.cerrarPreview();
+			});
+			window.addEventListener('storage', this.alCambiarEnOtraPestana);
+			const visor = this.$refs.visor;
+			new ResizeObserver(() => {
+				this.anchoVisor = visor.clientWidth;
+				this.altoVisor = visor.clientHeight;
+			}).observe(visor);
 		},
 		methods: {
-			showAlert(message, type = 'success') {
-				this.alerts.push({ message, type });
-				setTimeout(() => this.dismissAlert(this.alerts.length - 1), 4500);
+			// ---------- Avisos ----------
+
+			avisar(mensaje, tipo = 'ok') {
+				const id = ++ultimoId;
+				this.toasts.push({ id, mensaje, tipo });
+				setTimeout(() => this.cerrarToast(id), 4500);
 			},
 
-			dismissAlert(index) {
-				this.alerts.splice(index, 1);
+			cerrarToast(id) {
+				this.toasts = this.toasts.filter(t => t.id !== id);
+			},
+
+			// ---------- Guardado ----------
+
+			guardarPrefs() {
+				try {
+					localStorage.setItem(CLAVE_PREFS, JSON.stringify(this.prefs));
+				} catch (e) {
+					if (!this.avisoSinGuardar) this.avisar('Este navegador no deja guardar la configuración', 'aviso');
+					this.avisoSinGuardar = true;
+				}
+			},
+
+			// Guarda el estado actual como "última usada" de este tipo de acta
+			persistir() {
+				if (!this.paginas.length) return;
+				this.prefs.ultima[this.claveTipo] = clonar(this.instantanea);
+				this.guardarPrefs();
+			},
+
+			// Las operaciones sobre las firmas guardadas van de a una, en orden: así un "borrar"
+			// no se cruza con un "guardar" que estaba a mitad de camino.
+			enCola(operacion) {
+				const resultado = this.cola.then(operacion);
+				this.cola = resultado.catch(() => {});
+				return resultado;
+			},
+
+			// Con "Recordar" activo trae las firmas guardadas; si está apagado, borra cualquier resto
+			// (por ejemplo, de un borrado que falló), para que nunca queden firmas que no se ven.
+			cargarBiblioteca() {
+				return this.enCola(async () => {
+					if (!this.prefs.guardarFirmas) {
+						try { await FirmasBD.borrarTodas(); } catch (e) { console.error(e); }
+						return;
+					}
+					try {
+						const registros = (await FirmasBD.todas()).sort((a, b) => a.creada - b.creada);
+						this.biblioteca = await Promise.all(registros.map(async r => ({
+							id: r.id, nombre: r.nombre, tipo: r.tipo, bytes: await r.blob.arrayBuffer(), url: URL.createObjectURL(r.blob)
+						})));
+					} catch (e) {
+						console.error(e);
+						this.avisar('No pude leer las firmas guardadas', 'aviso');
+					}
+				});
+			},
+
+			// Guarda la firma (si ya estaba, devuelve la existente). Si "Recordar" está apagado
+			// cuando le toca el turno, no guarda nada. Si el navegador no deja guardar, tira error.
+			guardarEnBiblioteca(firma) {
+				return this.enCola(async () => {
+					if (!this.prefs.guardarFirmas || firma.id) return firma;
+					const id = await huella(firma.bytes);
+					const existente = this.biblioteca.find(f => f.id === id);
+					if (existente) return existente;
+					await FirmasBD.guardar({
+						id, nombre: firma.nombre, tipo: firma.tipo, creada: Date.now(),
+						blob: new Blob([firma.bytes], { type: firma.tipo })
+					});
+					firma.id = id;
+					this.biblioteca.push(firma);
+					return this.biblioteca[this.biblioteca.length - 1];
+				});
+			},
+
+			// Reemplaza una firma por otra en todos los lugares que la usan
+			reemplazarFirma(vieja, nueva) {
+				if (vieja === nueva) return;
+				for (const l of this.lugares) if (l.firma === vieja) l.firma = nueva;
+				if (!this.firmaEnUso(vieja)) this.soltarUrl(vieja);
+			},
+
+			// Saca referencias a firmas que ya no están guardadas (todas si ids es null)
+			olvidarIdsDeFirmas(ids) {
+				const estados = [...Object.values(this.prefs.ultima), ...this.prefs.configs];
+				for (const e of estados) {
+					for (const l of e.lugares) if (l.firmaId && (!ids || ids.has(l.firmaId))) l.firmaId = null;
+				}
+			},
+
+			async activarGuardado() {
+				if (this.ocupado) return;
+				this.ocupado = true;
+				this.prefs.guardarFirmas = true;
+				this.confirmar = null;
+				this.guardarPrefs();
+				let fallo = false;
+				for (const f of new Set(this.lugares.map(l => l.firma).filter(f => f && !f.id))) {
+					try {
+						this.reemplazarFirma(f, await this.guardarEnBiblioteca(f));
+					} catch (e) {
+						console.error(e);
+						fallo = true;
+						break;
+					}
+				}
+				this.ocupado = false;
+				if (fallo && !this.biblioteca.length) {
+					this.prefs.guardarFirmas = false;
+					this.guardarPrefs();
+					this.avisar('Este navegador no deja guardar las firmas', 'error');
+					return;
+				}
+				this.persistir();
+				this.avisar(fallo ? 'Algunas firmas no se pudieron guardar' : 'Listo: tus firmas quedan guardadas en este navegador', fallo ? 'aviso' : 'ok');
+			},
+
+			// Saca las firmas de la biblioteca en memoria: las que están en uso quedan cargadas en esta sesión
+			// pero ya no figuran como guardadas.
+			vaciarBiblioteca(ids) {
+				for (const f of this.biblioteca) {
+					if (ids && !ids.has(f.id)) continue;
+					f.id = null;
+					if (!this.firmaEnUso(f)) URL.revokeObjectURL(f.url);
+				}
+				this.biblioteca = ids ? this.biblioteca.filter(f => f.id) : [];
+			},
+
+			async desactivarGuardado() {
+				if (this.ocupado) return;
+				this.ocupado = true;
+				this.prefs.guardarFirmas = false; // las cargas que estén en la cola ya no guardan
+				this.confirmar = null;
+				try {
+					await this.enCola(() => FirmasBD.borrarTodas());
+				} catch (e) {
+					console.error(e);
+					this.avisar('No pude borrar las firmas guardadas. Se van a borrar la próxima vez que abras la página.', 'error');
+				}
+				this.vaciarBiblioteca(null);
+				this.olvidarIdsDeFirmas(null);
+				this.guardarPrefs();
+				this.persistir();
+				this.ocupado = false;
+				this.avisar('Se borraron las firmas guardadas', 'ok');
+			},
+
+			cambiarGuardado(e) {
+				if (this.ocupado) {
+					e.target.checked = this.prefs.guardarFirmas;
+				} else if (e.target.checked) {
+					this.activarGuardado();
+				} else if (this.biblioteca.length) {
+					e.target.checked = true; // se desactiva recién al confirmar
+					this.confirmar = 'desactivar';
+				} else {
+					this.desactivarGuardado();
+				}
+			},
+
+			async borrarFirmaGuardada(f) {
+				const id = f.id;
+				try {
+					await this.enCola(() => FirmasBD.borrar(id));
+				} catch (e) {
+					console.error(e);
+					this.avisar('No pude borrar la firma', 'error');
+					return;
+				}
+				this.olvidarIdsDeFirmas(new Set([id]));
+				this.vaciarBiblioteca(new Set([id]));
+				this.guardarPrefs();
+				this.persistir();
+			},
+
+			async borrarTodo() {
+				this.prefs.guardarFirmas = false;
+				let ok = true;
+				try {
+					await this.enCola(() => FirmasBD.borrarTodas());
+				} catch (e) {
+					console.error(e);
+					ok = false;
+				}
+				this.vaciarBiblioteca(null);
+				try {
+					localStorage.removeItem(CLAVE_PREFS);
+					localStorage.removeItem(CLAVE_PREFS_V2);
+				} catch (e) {}
+				const zoom = this.prefs.zoom;
+				this.prefs = leerPrefs();
+				this.prefs.zoom = zoom;
+				this.confirmar = null;
+				if (ok) this.avisar('Se borró todo lo guardado', 'ok');
+				else this.avisar('Se borraron las configuraciones, pero no las firmas. Se van a borrar la próxima vez que abras la página.', 'error');
+			},
+
+			// Otra pestaña cambió lo guardado: se toma eso como verdad, para no pisarlo después
+			alCambiarEnOtraPestana(e) {
+				if (e.key !== CLAVE_PREFS && e.key !== null) return;
+				const antes = this.prefs.guardarFirmas;
+				this.prefs = leerPrefs();
+				if (antes && !this.prefs.guardarFirmas) {
+					this.vaciarBiblioteca(null);
+				} else if (!antes && this.prefs.guardarFirmas) {
+					this.bibliotecaLista = this.cargarBiblioteca();
+				}
+			},
+
+			olvidarUltima(t) {
+				delete this.prefs.ultima[t];
+				this.guardarPrefs();
+			},
+
+			abrirDatos() {
+				this.confirmar = null;
+				this.verDatos = true;
+			},
+
+			cerrarDatos() {
+				this.confirmar = null;
+				this.verDatos = false;
+			},
+
+			nombreDeTipo(t) {
+				return TIPOS[t] ? TIPOS[t].nombre : 'Otros documentos';
+			},
+
+			resumen(estado) {
+				const n = estado.lugares.length;
+				const conFirma = estado.lugares.filter(l => l.firmaId).length;
+				return `${n} ${n === 1 ? 'lugar' : 'lugares'}` + (conFirma ? `, ${conFirma} con firma` : '');
+			},
+
+			// ---------- Configuraciones con nombre ----------
+
+			empezarGuardarComo() {
+				this.reemplazo = null;
+				this.nombreNuevo = this.configSeleccionada ? this.configSeleccionada.nombre : '';
+				this.$nextTick(() => this.$refs.inputNombre && this.$refs.inputNombre.select());
+			},
+
+			guardarComo() {
+				const nombre = (this.nombreNuevo || '').trim();
+				if (!nombre) return;
+				const t = this.claveTipo;
+				let config = this.prefs.configs.find(c => c.tipo === t && c.nombre.toLowerCase() === nombre.toLowerCase());
+				// pisar otra configuración (no la que está elegida) pide confirmar con un segundo click
+				if (config && config.id !== this.seleccionId && this.reemplazo !== config.id) {
+					this.reemplazo = config.id;
+					return;
+				}
+				this.reemplazo = null;
+				if (!config) {
+					config = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), nombre, tipo: t };
+					this.prefs.configs.push(config);
+				}
+				Object.assign(config, clonar(this.instantanea), { nombre });
+				this.prefs.seleccion[t] = config.id;
+				this.nombreNuevo = null;
+				this.guardarPrefs();
+				this.avisar(`Configuración «${nombre}» guardada`, 'ok');
+			},
+
+			elegirConfig(id) {
+				const t = this.claveTipo;
+				if (!id) {
+					delete this.prefs.seleccion[t];
+					this.guardarPrefs();
+					return;
+				}
+				const config = this.prefs.configs.find(c => c.id === id);
+				if (!config) return;
+				this.prefs.seleccion[t] = id;
+				// la configuración trae sus lugares y sus firmas guardadas; lo que no tenga queda vacío
+				this.aplicarEstado(config, false);
+				this.persistir();
+			},
+
+			actualizarConfig() {
+				const config = this.configSeleccionada;
+				if (!config) return;
+				Object.assign(config, clonar(this.instantanea));
+				this.guardarPrefs();
+				this.avisar(`Configuración «${config.nombre}» actualizada`, 'ok');
+			},
+
+			borrarConfig(config) {
+				this.prefs.configs = this.prefs.configs.filter(c => c.id !== config.id);
+				for (const t of Object.keys(this.prefs.seleccion)) {
+					if (this.prefs.seleccion[t] === config.id) delete this.prefs.seleccion[t];
+				}
+				this.guardarPrefs();
 			},
 
 			// ---------- PDF ----------
 
 			async abrirPDF(file) {
 				if (!file) return;
+				this.$refs.inputPdf.value = '';
 				const carga = this.cargaActual = {};
 				this.cargando = true;
 				try {
@@ -244,8 +1186,13 @@
 						paginas.push({ num: n, ancho: vp.width, alto: vp.height });
 					}
 					const { tipo, anclaY } = await this.detectarTipo(await doc.getPage(1));
+					await this.bibliotecaLista;
 					if (carga !== this.cargaActual) return;
 
+					if (this.pdfDoc) this.pdfDoc.destroy();
+					this.pdfDoc = doc;
+					this.canvases = {};
+					this.tareas = {};
 					this.pdfFile = file;
 					this.pdfBytes = bytes;
 					this.paginas = paginas;
@@ -254,18 +1201,21 @@
 					this.avisoPie = tipo && anclaY === null
 						? 'No encontré el texto "Firmas" en el pie: revisá que los recuadros estén en su lugar.'
 						: '';
-					if (typeof this.modoPagina === 'number' && this.modoPagina > paginas.length) this.modoPagina = 'todas';
-					this.armarLugares();
-					this.limpiarPreview();
+					this.aplicarEstado(this.prefs.ultima[this.claveTipo] || this.estadoDeFabrica(), true);
+					this.persistir();
+					this.nombreNuevo = null;
+					this.cerrarPreview();
 
 					await this.$nextTick();
-					for (const pag of paginas) {
-						if (carga !== this.cargaActual) return;
-						await this.dibujarPagina(doc, pag);
-					}
+					const visor = this.$refs.visor;
+					visor.scrollTop = 0;
+					this.anchoVisor = visor.clientWidth;
+					this.altoVisor = visor.clientHeight;
+					await this.$nextTick();
+					await this.dibujarPaginas();
 				} catch (e) {
 					console.error(e);
-					this.showAlert('No pude abrir el PDF: ' + e.message, 'danger');
+					this.avisar('No pude abrir el PDF: ' + e.message, 'error');
 				} finally {
 					if (carga === this.cargaActual) this.cargando = false;
 				}
@@ -280,59 +1230,136 @@
 				return { tipo, anclaY: ancla ? ancla.transform[5] : null };
 			},
 
+			registrarCanvas(num, el) {
+				if (el) this.canvases[num] = el;
+				else delete this.canvases[num];
+			},
+
+			async dibujarPaginas() {
+				if (!this.pdfDoc) return;
+				const doc = this.pdfDoc;
+				for (const pag of this.paginas) {
+					if (doc !== this.pdfDoc) return;
+					await this.dibujarPagina(doc, pag);
+				}
+			},
+
+			// Dibuja en un canvas aparte y recién al final lo copia, para que no parpadee al hacer zoom
 			async dibujarPagina(doc, pag) {
+				const anterior = this.tareas[pag.num];
+				if (anterior) anterior.cancel();
+				const escala = Math.min(this.pxPorPunto * (window.devicePixelRatio || 1), 6);
 				const pagina = await doc.getPage(pag.num);
-				const viewport = pagina.getViewport({ scale: ESCALA });
-				const canvas = this.$refs['canvas' + pag.num][0];
-				canvas.width = viewport.width;
-				canvas.height = viewport.height;
-				await pagina.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+				const viewport = pagina.getViewport({ scale: escala });
+				const temporal = document.createElement('canvas');
+				temporal.width = Math.ceil(viewport.width);
+				temporal.height = Math.ceil(viewport.height);
+				const tarea = pagina.render({ canvasContext: temporal.getContext('2d'), viewport });
+				this.tareas[pag.num] = tarea;
+				try {
+					await tarea.promise;
+				} catch (e) {
+					if (e && e.name === 'RenderingCancelledException') return;
+					throw e;
+				}
+				const canvas = this.canvases[pag.num];
+				if (!canvas || doc !== this.pdfDoc) return;
+				canvas.width = temporal.width;
+				canvas.height = temporal.height;
+				canvas.getContext('2d').drawImage(temporal, 0, 0);
 			},
 
 			seFirma(num) {
 				return this.paginasAFirmar.includes(num);
 			},
 
-			// ---------- Lugares de firma ----------
+			// ---------- Zoom ----------
 
-			claveTipo() {
-				return this.tipo || 'otro';
+			acercar() {
+				this.zoom = Math.min(4, Math.floor(this.zoomPorcentaje / 25 + 1) * 0.25);
 			},
 
-			// Arma los recuadros según el tipo de acta (o lo que el usuario dejó guardado).
-			// Las firmas ya cargadas se conservan por orden, para firmar varias actas seguidas.
-			armarLugares(usarGuardados = true) {
-				const guardados = usarGuardados ? this.config.lugares[this.claveTipo()] : null;
-				const base = guardados || (this.tipo ? TIPOS[this.tipo].lugares : []);
+			alejar() {
+				this.zoom = Math.max(0.25, Math.ceil(this.zoomPorcentaje / 25 - 1) * 0.25);
+			},
+
+			// ---------- Lugares de firma ----------
+
+			estadoDeFabrica() {
+				return {
+					lugares: (this.tipo ? TIPOS[this.tipo].lugares : []).map(l => ({ ...l, firmaId: null })),
+					modoPagina: this.modoPagina
+				};
+			},
+
+			// Arma los recuadros a partir de un estado guardado. Si el estado trae una firma guardada, va esa;
+			// si no y "conservar" es true, queda la que ya estaba cargada en ese orden (para firmar varias actas
+			// seguidas). Solo se conserva si la cantidad de lugares coincide: si no, el orden no dice nada y
+			// una firma podría caer en el lugar de otra persona.
+			aplicarEstado(estado, conservar) {
 				const previas = this.lugares.map(l => l.firma);
-				this.lugares = base.map((l, i) => ({
-					id: ++ultimoId, x: l.x, y: l.y + this.desplazamiento, w: l.w, h: l.h,
-					firma: previas[i] || null, sobre: false
-				}));
-				previas.slice(base.length).forEach(f => f && URL.revokeObjectURL(f.url));
+				if (previas.length !== estado.lugares.length) conservar = false;
+				const hoja = this.paginas[0];
+				this.lugares = estado.lugares.map((l, i) => {
+					// lo guardado puede venir de una hoja de otro tamaño: que no quede afuera
+					const w = Math.min(l.w, hoja.ancho), h = Math.min(l.h, hoja.alto);
+					const guardada = l.firmaId ? this.biblioteca.find(f => f.id === l.firmaId) : null;
+					return {
+						id: ++ultimoId, w, h,
+						x: limitar(l.x, 0, hoja.ancho - w),
+						y: limitar(l.y + this.desplazamiento, 0, hoja.alto - h),
+						firma: guardada || (conservar ? previas[i] || null : null),
+						sobre: false
+					};
+				});
+				for (const f of previas) if (f && !this.firmaEnUso(f)) this.soltarUrl(f);
+				let modo = estado.modoPagina || 'todas';
+				if (typeof modo === 'number' && modo > this.paginas.length) modo = 'todas';
+				this.modoPagina = modo;
 			},
 
 			agregarLugar() {
-				const pag = this.paginas[0];
+				const hoja = this.paginas[0];
 				const w = 130, h = 55;
-				this.lugares.push({ id: ++ultimoId, x: (pag.ancho - w) / 2, y: 100, w, h, firma: null, sobre: false });
-				this.guardarConfig();
+				this.lugares.push({ id: ++ultimoId, x: (hoja.ancho - w) / 2, y: 100, w, h, firma: null, sobre: false });
+				this.persistir();
 			},
 
 			restaurarLugares() {
-				delete this.config.lugares[this.claveTipo()];
-				this.armarLugares(false);
-				this.guardarConfig();
+				this.aplicarEstado(this.estadoDeFabrica(), true);
+				this.persistir();
 			},
 
-			quitar(lugar) {
-				if (lugar.firma) {
-					URL.revokeObjectURL(lugar.firma.url);
-					lugar.firma = null;
-				} else {
-					this.lugares.splice(this.lugares.indexOf(lugar), 1);
-					this.guardarConfig();
-				}
+			firmaEnUso(f) {
+				return this.lugares.some(l => l.firma === f);
+			},
+
+			// Libera la imagen en memoria, salvo que sea una firma guardada (la sigue usando la biblioteca)
+			soltarUrl(f) {
+				if (!f.id) URL.revokeObjectURL(f.url);
+			},
+
+			asignarFirma(lugar, firma) {
+				const vieja = lugar.firma;
+				lugar.firma = firma;
+				if (vieja && vieja !== firma && !this.firmaEnUso(vieja)) this.soltarUrl(vieja);
+				this.eligiendo = null;
+				this.persistir();
+			},
+
+			quitarFirma(lugar) {
+				const f = lugar.firma;
+				if (!f) return;
+				lugar.firma = null;
+				if (!this.firmaEnUso(f)) this.soltarUrl(f);
+				this.persistir();
+			},
+
+			quitarLugar(lugar) {
+				const f = lugar.firma;
+				this.lugares.splice(this.lugares.indexOf(lugar), 1);
+				if (f && !this.firmaEnUso(f)) this.soltarUrl(f);
+				this.persistir();
 			},
 
 			estiloLugar(l, pag) {
@@ -342,15 +1369,6 @@
 					width: (l.w / pag.ancho * 100) + '%',
 					height: (l.h / pag.alto * 100) + '%'
 				};
-			},
-
-			guardarConfig() {
-				const d = this.desplazamiento;
-				this.config.modoPagina = this.modoPagina;
-				this.config.lugares[this.claveTipo()] = this.lugares.map(l => ({
-					x: redondear(l.x), y: redondear(l.y - d), w: redondear(l.w), h: redondear(l.h)
-				}));
-				try { localStorage.setItem(CLAVE_CONFIG, JSON.stringify(this.config)); } catch (e) {}
 			},
 
 			// ---------- Mover y redimensionar ----------
@@ -393,16 +1411,28 @@
 				const a = this.arrastre;
 				this.arrastre = null;
 				if (!a) return;
-				if (a.movido) this.guardarConfig();
+				if (a.movido) this.persistir();
 				else if (a.modo === 'mover') this.elegirFirma(a.lugar);
 			},
 
 			// ---------- Imágenes de firma ----------
 
+			// Con firmas guardadas se elige de la lista; si no, directo al selector de archivos
 			elegirFirma(lugar) {
+				if (this.biblioteca.length) this.eligiendo = lugar;
+				else this.abrirSelectorArchivo(lugar);
+			},
+
+			abrirSelectorArchivo(lugar) {
 				this.destino = lugar;
 				this.$refs.inputFirma.value = '';
 				this.$refs.inputFirma.click();
+			},
+
+			subirDesdeSelector() {
+				const lugar = this.eligiendo;
+				this.eligiendo = null;
+				this.abrirSelectorArchivo(lugar);
 			},
 
 			alElegirFirma(e) {
@@ -418,12 +1448,23 @@
 
 			async cargarFirma(file, lugar) {
 				if (!['image/png', 'image/jpeg'].includes(file.type)) {
-					this.showAlert('La firma tiene que ser una imagen PNG o JPG', 'warning');
+					this.avisar('La firma tiene que ser una imagen PNG o JPG', 'aviso');
 					return;
 				}
 				const bytes = await file.arrayBuffer();
-				if (lugar.firma) URL.revokeObjectURL(lugar.firma.url);
-				lugar.firma = { bytes, tipo: file.type, url: URL.createObjectURL(file), nombre: file.name };
+				const nueva = { id: null, nombre: file.name, tipo: file.type, bytes, url: URL.createObjectURL(file) };
+				let firma = nueva;
+				if (this.prefs.guardarFirmas) {
+					try {
+						firma = await this.guardarEnBiblioteca(nueva);
+					} catch (e) {
+						console.error(e);
+						this.avisar('No pude guardar la firma en este navegador: queda cargada solo por ahora', 'aviso');
+					}
+				}
+				if (firma !== nueva) URL.revokeObjectURL(nueva.url); // ya estaba guardada: se usa esa
+				if (!this.lugares.includes(lugar)) { this.soltarUrl(firma); return; } // el lugar se borró mientras tanto
+				this.asignarFirma(lugar, firma);
 			},
 
 			// ---------- Generar ----------
@@ -431,87 +1472,83 @@
 			// Genera el PDF firmado en memoria y devuelve los bytes (o null si falla la validación)
 			async generarPDFBytes() {
 				if (!this.pdfBytes) {
-					this.showAlert("Selecciona un PDF", "warning");
+					this.avisar('Abrí primero el PDF del acta', 'aviso');
 					return null;
 				}
 
 				const conFirma = this.lugares.filter(l => l.firma);
 				if (conFirma.length === 0) {
-					this.showAlert("Cargá al menos una firma", "warning");
+					this.avisar('Cargá al menos una firma', 'aviso');
 					return null;
 				}
 
 				const pdfDoc = await PDFLib.PDFDocument.load(this.pdfBytes);
 				const pages = pdfDoc.getPages();
 
-				const imagenes = [];
+				const imagenes = new Map(); // la misma firma en varios lugares se incrusta una sola vez
 				for (const l of conFirma) {
-					imagenes.push(l.firma.tipo === 'image/png'
+					if (imagenes.has(l.firma.bytes)) continue;
+					imagenes.set(l.firma.bytes, l.firma.tipo === 'image/png'
 						? await pdfDoc.embedPng(l.firma.bytes)
 						: await pdfDoc.embedJpg(l.firma.bytes));
 				}
 
 				for (const num of this.paginasAFirmar) {
 					const page = pages[num - 1];
-					conFirma.forEach((l, i) => {
+					for (const l of conFirma) {
 						// Igual que en pantalla: se ajusta al recuadro sin deformarse, centrada y apoyada abajo
-						const img = imagenes[i];
+						const img = imagenes.get(l.firma.bytes);
 						const r = Math.min(l.w / img.width, l.h / img.height);
 						const w = img.width * r, h = img.height * r;
 						page.drawImage(img, { x: l.x + (l.w - w) / 2, y: l.y, width: w, height: h });
-					});
+					}
 				}
 
-				this.guardarConfig();
+				this.persistir();
 				return await pdfDoc.save();
 			},
 
-			limpiarPreview() {
-				if (this.previewUrl) URL.revokeObjectURL(this.previewUrl);
-				this.previewUrl = null;
+			cerrarPreview() {
+				if (!this.preview) return;
+				URL.revokeObjectURL(this.preview.url);
+				this.preview = null;
 			},
 
 			async previsualizarPDF() {
 				try {
-					const pdfModificado = await this.generarPDFBytes();
-					if (!pdfModificado) return;
-
-					const blob = new Blob([pdfModificado], { type: 'application/pdf' });
-
-					// Liberamos el preview anterior para no acumular memoria
-					this.limpiarPreview();
-					this.previewUrl = URL.createObjectURL(blob);
-
-					this.showAlert("Vista previa generada", "success");
+					const bytes = await this.generarPDFBytes();
+					if (!bytes) return;
+					const blob = new Blob([bytes], { type: 'application/pdf' });
+					this.cerrarPreview();
+					this.preview = { blob, url: URL.createObjectURL(blob) };
 				} catch (e) {
 					console.error(e);
-					this.showAlert("Error al procesar el PDF: " + e.message, "danger");
+					this.avisar('Error al procesar el PDF: ' + e.message, 'error');
 				}
+			},
+
+			descargar(blob) {
+				const url = URL.createObjectURL(blob);
+				const a = document.createElement('a');
+				a.href = url;
+				a.download = this.pdfFile.name.replace(/\.pdf$/i, '') + '_firmado.pdf';
+				a.click();
+				setTimeout(() => URL.revokeObjectURL(url), 1000);
+				const n = this.paginasAFirmar.length;
+				this.avisar(`Listo: firmas aplicadas en ${n === 1 ? '1 página' : n + ' páginas'}`, 'ok');
 			},
 
 			async firmarPDF() {
 				try {
-					const pdfModificado = await this.generarPDFBytes();
-					if (!pdfModificado) return;
-
-					const blob = new Blob([pdfModificado], { type: 'application/pdf' });
-					const url = URL.createObjectURL(blob);
-
-					const a = document.createElement('a');
-					a.href = url;
-					a.download = this.pdfFile.name.replace(/\.pdf$/i, '') + '_firmado.pdf';
-					a.click();
-					setTimeout(() => URL.revokeObjectURL(url), 1000);
-
-					const n = this.paginasAFirmar.length;
-					this.showAlert(`¡Éxito! Firmas aplicadas en ${n === 1 ? '1 página' : n + ' páginas'}`, "success");
+					const bytes = await this.generarPDFBytes();
+					if (bytes) this.descargar(new Blob([bytes], { type: 'application/pdf' }));
 				} catch (e) {
 					console.error(e);
-					this.showAlert("Error al procesar el PDF: " + e.message, "danger");
+					this.avisar('Error al procesar el PDF: ' + e.message, 'error');
 				}
 			}
 		}
-	});
+	}).mount('#app');
 </script>
 </body>
 </html>
